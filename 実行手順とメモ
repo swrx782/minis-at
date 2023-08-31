@@ -1,0 +1,95 @@
+・ビルドファイルのあるパスへ移動
+->Dockerfilからminisatイメージの作成
+->minisatイメージからminisatコンテナの実行(+minisatディレクトリをマウントする)
+cd /Users/wadashouta/desktop/university/lab/docker/minisat; docker build . --tag minisat; docker run -it --rm --name minisat -v /Users/wadashouta/desktop/university/lab/docker/minisat/minisat:/root/minisat minisat
+
+・makeによってできた実行ファイルは/root/minisat/build/release/bin/minisat
+
+・問題のあるディレクトリは/root/minisat/build/problem
+
+8/10 16:44
+簡単目な問題を持ってきたい
+-no-preにするとおそらく正しい証明が出来上がりそう
+おそらく前処理がある場合はdを入れなきゃいけないのかも
+
+8/11 15:12
+最後に0を入れなくても良さそう
+
+8/13 13:09
+節を出力する
+if (false) {
+    for (int j = 0; j < learnt_clause.size(); j++) {
+        printf("%s%d ", (sign(learnt_clause[j])? "-" : ""), var(learnt_clause[j])+1); 
+    }
+    printf("0\n");
+}
+※learntは変更させる
+使ったら必ず消すこと！
+
+8/21 17:58
+addClause
+ attachClause
+removeClause
+ detachClause
+どこで証明節の追加、削除を行う？
+
+8/22 16:42
+Solver::search()の中で学習節を作り終わった後で節を吐かせる
+ =>-no-preなら正しい証明になる
+SimpSolver::eliminateVar()の中で削除する変数にはfalseを割り当ててるのでその情報となる節を吐かせてみる
+ =>うまくいかず
+変数を削除する時にその変数を含むある節２つを合成して新しい節を作っている
+その時に使うaddclause_()で節を吐かせてみる
+ =>うまくいかず
+backwardSubsumptionCheck()の中である節からある変数を取り除く時にできた節を吐かせてみる
+ =>うまくいかず
+removeclause()の中で削除する節をd .... 0で吐かせてみる
+ =>うまくいかず
+前処理が終わった後の節を全て書き出してみたらどうなる？
+
+8/23 19:42
+Solver::search()の中で学習節を作り終わった後で節を吐かせる
++
+変数を削除する時にその変数を含むある節２つを合成して新しい節を作っている
+その時に使うaddclause_()で節を吐かせてみる
++
+mck()の中である節からある変数を取り除く時にできた節を吐かせてみる
+=>成功
+(SimpSolver::eliminateVar()の中で削除する変数にはfalseを割り当ててるのでその情報となる節を吐かせてみる
+ =>削除する変数には何の値も割り当てていなかった(l_Undef)がために失敗していた)
+
+8/24 18:18
+問題の節の数は37654個
+-no-preでの証明の数は83706個(問題の節の数37654+新たに作った補題の節の数46052)
+-pre               93092個(          37654+                    55438)
+
+8/27 23:40
+-0563 5147 0 がどうして出てこないことへの原因を探したい
+SimpSolver::backwardSubsumptionCheck
+->SimpSolver::strengthenClause
+->Simpsolver::removeClause
+->d -5063 5147 0
+-0563 5147 0の保存場所(CRef cr)は104552<-こいつがいつできたのかを見れば原因がわかりそう
+この値は変わらない
+
+8/28 17:52
+eliminate()実行時点でca[104552]=-5063 5147 0なのでeliminate()より前
+// fprintf(proof_file, "ca[104552].size()=%d\n", ca[104552].size());
+    if (proof_file) {
+        fprintf(proof_file, "ca[104552]=");
+        for (int j = 0; j < ca[104552].size(); j++) {
+            fprintf(proof_file, "%s%d ", (sign(ca[104552][j])? "-" : ""), var(ca[104552][j])+1); 
+        }
+        fprintf(proof_file, "0\n");
+    }
+
+8/29
+問題番号      実行時間(証明無) 実行時間(証明有)
+1172(sat)    13.777        48.803
+2985(sat).   1m25.578.     3m29.474
+7684(uns)    0m0.071s      0m0.749s
+10527(uns)   5m0.399s
+17584(uns)   0m0.085s.     0m0.736s
+5654(uns).   5m0.317s
+6687(uns).   0m36.268s     1m17.626s
+3977(uns).   0m33.127s.    1m18.319s
